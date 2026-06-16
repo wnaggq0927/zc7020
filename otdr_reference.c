@@ -1,0 +1,69 @@
+#include "otdr_reference.h"
+
+#include "otdr_config.h"
+
+#define OTDR_GOLAY_SYMBOL_COUNT 256
+
+static const char AP_CODE[OTDR_GOLAY_SYMBOL_COUNT + 1] =
+    "1110110111100010111011010001110111101101111000100001001011100010111011011110001011101101000111010001001000011101111011010001110111101101111000101110110100011101111011011110001000010010111000100001001000011101000100101110001011101101111000100001001011100010";
+
+static const char AN_CODE[OTDR_GOLAY_SYMBOL_COUNT + 1] =
+    "0001001000011101000100101110001000010010000111011110110100011101000100100001110100010010111000101110110111100010000100101110001000010010000111010001001011100010000100100001110111101101000111011110110111100010111011010001110100010010000111011110110100011101";
+
+static const char BP_CODE[OTDR_GOLAY_SYMBOL_COUNT + 1] =
+    "1110110111100010111011010001110111101101111000100001001011100010111011011110001011101101000111010001001000011101111011010001110100010010000111010001001011100010000100100001110111101101000111011110110111100010111011010001110100010010000111011110110100011101";
+
+static const char BN_CODE[OTDR_GOLAY_SYMBOL_COUNT + 1] =
+    "0001001000011101000100101110001000010010000111011110110100011101000100100001110100010010111000101110110111100010000100101110001011101101111000101110110100011101111011011110001000010010111000100001001000011101000100101110001011101101111000100001001011100010";
+
+static const char *active_code = AP_CODE;
+static int active_length;
+static int active_sps = 1;
+
+void otdr_reference_select(int wave_type, int pulse_width_ns)
+{
+    const int sample_period_ns =
+        otdr_config_get()->downsample_enable ? 8 : 4;
+
+    active_sps =
+        (pulse_width_ns + sample_period_ns / 2) / sample_period_ns;
+    if (active_sps < 1) {
+        active_sps = 1;
+    }
+
+    active_code = AP_CODE;
+    if (wave_type == 1) {
+        active_code = AN_CODE;
+    } else if (wave_type == 2) {
+        active_code = BP_CODE;
+    } else if (wave_type == 3) {
+        active_code = BN_CODE;
+    }
+
+    /*
+     * MATLAB upsample(seq, sps) has length:
+     * (symbol_count - 1) * sps + 1.
+     */
+    active_length =
+        (OTDR_GOLAY_SYMBOL_COUNT - 1) * active_sps + 1;
+}
+
+const char *otdr_reference_code(void)
+{
+    return active_code;
+}
+
+const char *otdr_reference_ap_code(void)
+{
+    return AP_CODE;
+}
+
+int otdr_reference_length(void)
+{
+    return active_length;
+}
+
+int otdr_reference_sps(void)
+{
+    return active_sps;
+}
