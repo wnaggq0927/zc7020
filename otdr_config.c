@@ -18,7 +18,8 @@ static otdr_config_t active_config = {
     .end_threshold_db = 5.0f,
     .nonreflect_threshold_db = 0.0f,
     .upload_raw_golay = 0U,
-    .rcos_filter_enable = 1U
+    .rcos_filter_enable = 1U,
+    .upload_mode = 0U
 };
 
 const otdr_config_t *otdr_config_get(void)
@@ -40,6 +41,8 @@ void otdr_config_apply_start(const start_measure_t *params,
         (params->Ctrl.EnableRefresh == 2U) ? 1U : 0U;
     active_config.rcos_filter_enable =
         (params->len >= 72U) ? params->Ext_RcosEnable : 1U;
+    active_config.upload_mode =
+        (params->len >= 76U) ? params->Ext_UploadMode : 0U;
 
     active_config.measure_range_m = params->State.MeasureLength_m;
     active_config.pulse_width_ns = params->State.PulseWidth_ns;
@@ -85,6 +88,9 @@ void otdr_config_apply_start(const start_measure_t *params,
         (hardware_acc_count > 0U) ? hardware_acc_count : 1U;
     if (active_config.software_acc_count == 0U) {
         active_config.software_acc_count = 1U;
+    }
+    if (active_config.upload_mode > 1U) {
+        active_config.upload_mode = 0U;
     }
 
     if (result != 0) {

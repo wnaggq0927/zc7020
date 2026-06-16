@@ -70,6 +70,7 @@ typedef struct start_measure {
     uint32_t  Ext_AdcDelay;
     uint32_t  Ext_CaptureSamples;
     uint32_t  Ext_RcosEnable;         // 0: rectangular reference, 1: raised-cosine reference
+    uint32_t  Ext_UploadMode;         // 0: debug float32, 1: official uint16 dB_x1000
 } start_measure_t;
 
 typedef struct {

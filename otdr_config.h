@@ -26,6 +26,7 @@ typedef struct {
     float nonreflect_threshold_db;
     uint32_t upload_raw_golay;
     uint32_t rcos_filter_enable;
+    uint32_t upload_mode;
 } otdr_config_t;
 
 /* Return the active configuration as a read-only shared object. */

@@ -63,13 +63,14 @@ class OTDR_UI:
         self.lambda_nm = tk.StringVar(value="1550")
         self.pulse_width_ns = tk.StringVar(value="80")
         self.measure_time_ms = tk.StringVar(value="15000")
-        self.refractive_index = tk.StringVar(value="1.4685")
+        self.refractive_index = tk.StringVar(value="1.466")
         self.end_threshold = tk.StringVar(value="5.0")
         self.non_reflect_threshold = tk.StringVar(value="0.0")
         self.export_golay_raw_csv = tk.BooleanVar(value=False)
         self.display_lpf_enable = tk.BooleanVar(value=True)
         self.rcos_filter_enable = tk.BooleanVar(value=True)
         self.x_axis_unit = tk.StringVar(value="公里(km)")
+        self.upload_format = tk.StringVar(value="实验(float32)")
 
         self.sock = None
         self.connected = False
@@ -261,6 +262,14 @@ class OTDR_UI:
             variable=self.rcos_filter_enable,
         ).pack(side=tk.LEFT, padx=10)
 
+        label(row_options, "上传格式:")
+        self.cb_upload_format = combo(
+            row_options,
+            self.upload_format,
+            ["实验(float32)", "交付(标准协议)"],
+            14,
+        )
+        self.cb_upload_format.current(0)
         label(row_options, "横坐标:")
         self.cb_x_axis_unit = combo(
             row_options,
@@ -474,6 +483,7 @@ class OTDR_UI:
             "software_accumulation": int(self.sw_acc_times_var.get()),
             "adc_delay_samples": int(self.adc_delay_var.get()),
             "rcos_reference_enabled": bool(self.rcos_filter_enable.get()),
+            "upload_format": self.upload_format.get(),
         })
         json_path = os.path.splitext(out_path)[0] + ".json"
         with open(json_path, "w", encoding="utf-8") as f:
@@ -648,11 +658,12 @@ class OTDR_UI:
             nr_th = float(self.non_reflect_threshold.get())
 
             standard_range_m = int(pts * 0.3)
-            payload_len = 72
+            payload_len = 76
             rcos_enable = 1 if self.rcos_filter_enable.get() else 0
+            upload_mode = 1 if self.upload_format.get().startswith("交付") else 0
 
             # 【修改】借用 Ctrl 结构体中的第三个字段(原先是0, 即RSVD)来传递 downsample_en
-            payload = struct.pack('<II IIIII IIIIfff IIIIII',
+            payload = struct.pack('<II IIIII IIIIfff IIIIIII',
                                   CMD_HOST_START_MEASURE, payload_len,
                                   # --- Ctrl ---
                                   mode_idx, opt_mode, downsample_en, enable_refresh, 1000,
@@ -660,17 +671,18 @@ class OTDR_UI:
                                   lam_nm, standard_range_m, pw_ns, meas_time, n_val, end_th, nr_th,
                                   # --- 专属硬件扩展区 ---
                                   hw_acc_times, sw_acc_times, com_sel_idx, adc_dly, pts,
-                                  rcos_enable)
+                                  rcos_enable, upload_mode)
 
             self.sock.sendall(self.make_header(CMD_HOST_START_MEASURE, len(payload)) + payload)
 
             mode_str = "高精度(Golay)" if opt_mode == 0 else "快速(单脉冲)"
             ds_str = "降采样" if downsample_en == 1 else "全速"
             rcos_str = "升余弦相关" if rcos_enable else "矩形相关"
+            upload_str = "标准协议" if upload_mode else "float32实验"
             raw_export_str = ", Golay五组浮点实验数据" if enable_refresh == 2 else ""
             self.log(
                 f"▶ 启动 {mode_str} 测试! CH:{com_sel_idx}, 模式:{ds_str}, "
-                f"参考:{rcos_str}, 采集点数:{pts}, 硬件叠加:{hw_acc_times}, "
+                f"参考:{rcos_str}, 上传:{upload_str}, 采集点数:{pts}, 硬件叠加:{hw_acc_times}, "
                 f"软件叠加:{sw_acc_times}{raw_export_str}")
         except Exception as e:
             self.log(f"参数错误或发送失败: {e}")

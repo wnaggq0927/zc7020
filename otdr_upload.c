@@ -14,7 +14,6 @@
 #define OTDR_DATA_FORMAT_FLOAT32 0x80000000U
 #define OTDR_DATA_FORMAT_INT32   0x40000000U
 #define OTDR_FRAME_FOOTER        0xffffeeeeU
-#define OFFICIAL_CURVE_GAIN      1.0e-3f
 #define MAX_TX_BUFFER_SIZE       (10U * 1024U * 1024U + 500U * 1024U)
 
 static u8 tx_buffer[MAX_TX_BUFFER_SIZE];
@@ -149,10 +148,16 @@ err_t otdr_upload_official_float(const float *curve, u32 point_count)
 {
     otdr_measure_param_t param;
     const uint32_t data_len = point_count * sizeof(uint16_t);
-    const uint32_t event_num = 0U;
+    const uint32_t event_num =
+        otdr_event_analyze(curve,
+                           point_count,
+                           upload_events,
+                           OTDR_MAX_EVENTS);
+    const uint32_t event_len =
+        event_num * sizeof(otdr_event_point_t);
     const uint32_t payload_len =
         sizeof(param) + sizeof(point_count) + data_len +
-        sizeof(event_num) + sizeof(uint32_t);
+        sizeof(event_num) + event_len + sizeof(uint32_t);
     const uint32_t total_len = sizeof(frame_header_t) + payload_len;
 
     if (total_len > MAX_TX_BUFFER_SIZE) {
@@ -172,22 +177,33 @@ err_t otdr_upload_official_float(const float *curve, u32 point_count)
     uint16_t *out_curve = (uint16_t *)ptr;
     float min_db = 50.0f;
     float max_db = -5.0f;
+    float max_power = 1.0e-6f;
 
     for (uint32_t i = 0U; i < point_count; ++i) {
-        float amplitude = curve[i];
-        if (amplitude < 0.0f) {
-            amplitude = -amplitude;
+        float power = curve[i];
+        if (power < 0.0f) {
+            power = -power;
         }
-        if (amplitude < 1.0e-6f) {
-            amplitude = 1.0e-6f;
-        }
-
-        amplitude *= OFFICIAL_CURVE_GAIN;
-        if (amplitude < 1.0e-6f) {
-            amplitude = 1.0e-6f;
+        if (power > max_power) {
+            max_power = power;
         }
 
-        float db = 20.0f * log10f(amplitude);
+        if ((i % 30000U) == 0U) {
+            otdr_watchdog_poll();
+        }
+    }
+    const float reference_db = 10.0f * log10f(max_power);
+
+    for (uint32_t i = 0U; i < point_count; ++i) {
+        float power = curve[i];
+        if (power < 0.0f) {
+            power = -power;
+        }
+        if (power < 1.0e-6f) {
+            power = 1.0e-6f;
+        }
+
+        float db = 10.0f * log10f(power) - reference_db + 50.0f;
         if (db < -5.0f) {
             db = -5.0f;
         }
@@ -215,6 +231,10 @@ err_t otdr_upload_official_float(const float *curve, u32 point_count)
     ptr += data_len;
     memcpy(ptr, &event_num, sizeof(event_num));
     ptr += sizeof(event_num);
+    if (event_len > 0U) {
+        memcpy(ptr, upload_events, event_len);
+        ptr += event_len;
+    }
 
     const uint32_t footer = OTDR_FRAME_FOOTER;
     memcpy(ptr, &footer, sizeof(footer));

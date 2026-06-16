@@ -202,11 +202,21 @@ static void process_single_pulse(struct netif *netif, uint32_t elements)
         upload_buffer[i] = (float)accumulation_buffer[i] * scale;
     }
 
-    upload_float_data(upload_buffer,
-                      elements,
-                      upload_buffer,
-                      elements,
-                      "Failed to send single pulse data");
+    if (config->upload_mode == 1U) {
+        const err_t send_error =
+            otdr_upload_official_float(upload_buffer, elements);
+        if (send_error == ERR_OK) {
+            otdr_protocol_set_waiting_ack(1);
+        } else {
+            xil_printf("[UDP] Failed to send official single pulse data\r\n");
+        }
+    } else {
+        upload_float_data(upload_buffer,
+                          elements,
+                          upload_buffer,
+                          elements,
+                          "Failed to send single pulse data");
+    }
     measurement_state.software_acc_count = 0U;
 }
 
@@ -263,11 +273,21 @@ static void finish_golay_measurement(uint32_t elements)
         upload_points = elements * 5U;
     }
 
-    upload_float_data(upload_data,
-                      upload_points,
-                      &upload_buffer[elements],
-                      elements,
-                      "Failed to send Golay AP + final corr");
+    if (config->upload_mode == 1U && !config->upload_raw_golay) {
+        const err_t send_error =
+            otdr_upload_official_float(&upload_buffer[elements], elements);
+        if (send_error == ERR_OK) {
+            otdr_protocol_set_waiting_ack(1);
+        } else {
+            xil_printf("[UDP] Failed to send official Golay data\r\n");
+        }
+    } else {
+        upload_float_data(upload_data,
+                          upload_points,
+                          &upload_buffer[elements],
+                          elements,
+                          "Failed to send Golay AP + final corr");
+    }
 }
 
 static void complete_golay_step(void)
