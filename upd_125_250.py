@@ -547,8 +547,10 @@ class OTDR_UI:
 
     def start_ota_dialog(self):
         if not self.connected or self.sock is None: return
-        filepath = filedialog.askopenfilename(title="选择 BOOT.bin 固件",
-                                              filetypes=[("BIN Files", "*.bin"), ("All Files", "*.*")])
+        filepath = filedialog.askopenfilename(title="选择 OTA 固件包或 BOOT.bin",
+                                              filetypes=[("OTA Package", "*.pkg"),
+                                                         ("BIN Files", "*.bin"),
+                                                         ("All Files", "*.*")])
         if not filepath: return
 
         with open(filepath, 'rb') as f:

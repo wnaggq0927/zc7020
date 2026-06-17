@@ -7,6 +7,8 @@
 #include "xil_cache.h"
 #include "qspi_g128_flash.h"
 
+#include <string.h>
+
 
 /************************** Constant Definitions *****************************/
 
@@ -417,13 +419,29 @@ int Init_qspi(XQspiPs *QspiInstancePtr, u16 QspiDeviceId)
 }
 
 
-void update_flash(u8 *buffer, u8 *read_buffer, u8 *write_buffer, u32 length)
+void read_flash_at(u32 flash_address, u8 *buffer, u8 *read_work_buffer,
+				   u32 length)
+{
+	FlashRead(&QspiInstance, flash_address, length, QUAD_READ_CMD,
+			  read_work_buffer, buffer);
+}
+
+int update_flash_at(u32 flash_address, u8 *buffer, u8 *read_buffer,
+					u8 *write_buffer, u32 length)
 {
 	int Page;
 	int Page_cnt;
 	int i;
+	u32 PageSize;
+	u32 PaddedLength;
+	int VerifyOk = 1;
 
-	/*copy file to write buffer*/
+	PageSize = Flash_Config_Table[FCTIndex].PageSize;
+	Page_cnt = (length + PageSize - 1U) / PageSize;
+	PaddedLength = Page_cnt * PageSize;
+
+	/* Copy file to write buffer. */
+	memset(write_buffer, 0xFF, PaddedLength + DATA_OFFSET);
 	memcpy(write_buffer + 4, buffer, length);
 
 //	Xil_DCacheFlushRange((INTPTR)(write_buffer + 4), length);
@@ -441,46 +459,51 @@ void update_flash(u8 *buffer, u8 *read_buffer, u8 *write_buffer, u32 length)
 //
 //		xil_printf("verify done!\r\n");
 
-	/*calculate the page need to write*/
-	Page_cnt = length/Flash_Config_Table[FCTIndex].PageSize + 1;
-
-	/*erase flash*/
-	FlashErase(&QspiInstance, BIN_START_ADDRESS, length, WriteBuffer);
+	/* Erase flash. */
+	FlashErase(&QspiInstance, flash_address, PaddedLength, WriteBuffer);
 
 	xil_printf("flash erase done!\r\n");
 	xil_printf("flash erase done!\r\n");
 
-	/*write file to flash one page each time*/
+	/* Write file to flash one page each time. */
 	for (Page = 0; Page < Page_cnt; Page++) {
 		FlashWrite(&QspiInstance,
-			(Page * Flash_Config_Table[FCTIndex].PageSize) + BIN_START_ADDRESS,
-			Flash_Config_Table[FCTIndex].PageSize, WRITE_CMD, write_buffer + (Page * Flash_Config_Table[FCTIndex].PageSize));
+			(Page * PageSize) + flash_address,
+			PageSize, WRITE_CMD, write_buffer + (Page * PageSize));
 	}
 
 	xil_printf("flash write done!\r\n");
 	xil_printf("flash write done!\r\n");
 
-	/*read the file back from flash*/
-	FlashRead(&QspiInstance, BIN_START_ADDRESS, length, QUAD_READ_CMD,
+	/* Read the file back from flash. */
+	FlashRead(&QspiInstance, flash_address, length, QUAD_READ_CMD,
 						WriteBuffer, read_buffer);
 
 	xil_printf("flash read done!\r\n");
 	xil_printf("flash read done!\r\n");
 
-	/*compare the read file to the original file*/
+	/* Compare the read file to the original file. */
 	for (i = 0; i < length; i++)
 	{
 		if(read_buffer[i] != buffer[i])
 		{
 			xil_printf("verify error: error address is %08x\r\n", i);
 			xil_printf("verify error\r\n");
+			VerifyOk = 0;
+			break;
 		}
 	}
 
 	xil_printf("verify done!\r\n");
 	xil_printf("verify done!\r\n");
 
+	return VerifyOk;
+}
 
+void update_flash(u8 *buffer, u8 *read_buffer, u8 *write_buffer, u32 length)
+{
+	(void)update_flash_at(BIN_START_ADDRESS, buffer, read_buffer,
+						  write_buffer, length);
 }
 
 /******************************************************************************

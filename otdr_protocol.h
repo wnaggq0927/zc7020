@@ -24,6 +24,8 @@
 
 #define STATE_CODE_CMD_OK           0
 #define STATE_CODE_CMD_ID_ERROR     4
+#define STATE_CODE_FILE_CONTENT_ERROR 100
+#define STATE_CODE_OTDR_UPDATE_FAIL 102
 
 
 #pragma pack(push, 1)
